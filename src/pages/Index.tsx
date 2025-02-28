@@ -4,9 +4,27 @@ import AQIDisplay from "@/components/AQIDisplay";
 import SensorCard from "@/components/SensorCard";
 import { Meteors } from "@/components/Meteors";
 import AQIChart from "@/components/AQIChart";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+
+interface SensorReading {
+  aqi: number;
+  temperature: number;
+  humidity: number;
+  pm25: number;
+  pm10: number;
+  co: number;
+  methane: number;
+  airQuality: number;
+}
+
+interface SensorStatus {
+  status: "good" | "moderate" | "unhealthy" | "hazardous";
+  message: string;
+  color: "green" | "yellow" | "red" | "purple";
+}
 
 const Index = () => {
-  const [data, setData] = useState({
+  const [data, setData] = useState<SensorReading>({
     aqi: 0,
     temperature: 0,
     humidity: 0,
@@ -17,8 +35,110 @@ const Index = () => {
     airQuality: 0
   });
 
+  const [sensorStatuses, setSensorStatuses] = useState<Record<string, SensorStatus>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [overallStatus, setOverallStatus] = useState<SensorStatus>({
+    status: "good",
+    message: "Air quality is good. Safe to go outside.",
+    color: "green"
+  });
+
+  // Define threshold values for each parameter
+  const thresholds = {
+    temperature: {
+      good: { max: 25, message: "Comfortable temperature.", color: "green" as "green" },
+      moderate: { max: 30, message: "Moderate temperature. Consider shade when outside.", color: "yellow" as "yellow" },
+      unhealthy: { max: 35, message: "High temperature. Stay hydrated.", color: "red" as "red" },
+      hazardous: { message: "Extreme temperature. Avoid outdoor activities.", color: "purple" as "purple" }
+    },
+    humidity: {
+      good: { max: 50, message: "Comfortable humidity level.", color: "green" as "green" },
+      moderate: { max: 65, message: "Moderate humidity level.", color: "yellow" as "yellow" },
+      unhealthy: { max: 80, message: "High humidity. May cause discomfort.", color: "red" as "red" },
+      hazardous: { message: "Very high humidity. Limit outdoor exposure.", color: "purple" as "purple" }
+    },
+    pm25: {
+      good: { max: 12, message: "Good PM2.5 levels.", color: "green" as "green" },
+      moderate: { max: 35.4, message: "Moderate PM2.5 levels. Sensitive individuals should use caution.", color: "yellow" as "yellow" },
+      unhealthy: { max: 55.4, message: "Unhealthy PM2.5 levels. Consider wearing a mask.", color: "red" as "red" },
+      hazardous: { message: "Hazardous PM2.5 levels. Stay indoors.", color: "purple" as "purple" }
+    },
+    pm10: {
+      good: { max: 54, message: "Good PM10 levels.", color: "green" as "green" },
+      moderate: { max: 154, message: "Moderate PM10 levels. Sensitive individuals should use caution.", color: "yellow" as "yellow" },
+      unhealthy: { max: 254, message: "Unhealthy PM10 levels. Consider wearing a mask.", color: "red" as "red" },
+      hazardous: { message: "Hazardous PM10 levels. Stay indoors.", color: "purple" as "purple" }
+    },
+    co: {
+      good: { max: 4.4, message: "Safe CO levels.", color: "green" as "green" },
+      moderate: { max: 9.4, message: "Moderate CO levels. Monitor for changes.", color: "yellow" as "yellow" },
+      unhealthy: { max: 12.4, message: "Unhealthy CO levels. Ensure proper ventilation.", color: "red" as "red" },
+      hazardous: { message: "Dangerous CO levels. Evacuate area and seek fresh air.", color: "purple" as "purple" }
+    },
+    methane: {
+      good: { max: 2, message: "Safe methane levels.", color: "green" as "green" },
+      moderate: { max: 5, message: "Moderate methane levels. Monitor for changes.", color: "yellow" as "yellow" },
+      unhealthy: { max: 10, message: "Elevated methane levels. Ensure proper ventilation.", color: "red" as "red" },
+      hazardous: { message: "High methane levels. Risk of flammability.", color: "purple" as "purple" }
+    },
+    airQuality: {
+      good: { max: 50, message: "Good air quality.", color: "green" as "green" },
+      moderate: { max: 100, message: "Moderate air quality.", color: "yellow" as "yellow" },
+      unhealthy: { max: 150, message: "Poor air quality. Limit outdoor exposure.", color: "red" as "red" },
+      hazardous: { message: "Very poor air quality. Stay indoors.", color: "purple" as "purple" }
+    }
+  };
+
+  // Determine status based on value and thresholds
+  const determineStatus = (param: string, value: number): SensorStatus => {
+    const paramThresholds = thresholds[param as keyof typeof thresholds];
+    
+    if (value <= paramThresholds.good.max) {
+      return { status: "good", message: paramThresholds.good.message, color: paramThresholds.good.color };
+    } else if (value <= paramThresholds.moderate.max) {
+      return { status: "moderate", message: paramThresholds.moderate.message, color: paramThresholds.moderate.color };
+    } else if (value <= paramThresholds.unhealthy.max) {
+      return { status: "unhealthy", message: paramThresholds.unhealthy.message, color: paramThresholds.unhealthy.color };
+    } else {
+      return { status: "hazardous", message: paramThresholds.hazardous.message, color: paramThresholds.hazardous.color };
+    }
+  };
+
+  // Determine worst status among all parameters to set overall status
+  const determineOverallStatus = (statuses: Record<string, SensorStatus>): SensorStatus => {
+    const priorities = { "good": 0, "moderate": 1, "unhealthy": 2, "hazardous": 3 };
+    let worstStatus: SensorStatus = {
+      status: "good",
+      message: "Air quality is good. Safe to go outside.",
+      color: "green"
+    };
+    
+    Object.values(statuses).forEach(status => {
+      if (priorities[status.status] > priorities[worstStatus.status]) {
+        worstStatus = status;
+      }
+    });
+
+    // Generate an overall message based on worst status
+    let message = "";
+    switch (worstStatus.status) {
+      case "good":
+        message = "All parameters are at safe levels. It's safe to go outside.";
+        break;
+      case "moderate":
+        message = "Some parameters are at moderate levels. Sensitive individuals should take precautions.";
+        break;
+      case "unhealthy":
+        message = "Some parameters are at unhealthy levels. Consider wearing a mask when going outside.";
+        break;
+      case "hazardous":
+        message = "Hazardous conditions detected. Stay indoors with windows closed.";
+        break;
+    }
+
+    return { ...worstStatus, message };
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -29,7 +149,7 @@ const Index = () => {
         }
         const result = await response.json();
         
-        setData({
+        const newData = {
           aqi: result.aqi || 0,
           temperature: result.temperature ? Number(result.temperature.toFixed(1)) : 0,
           humidity: result.humidity || 0,
@@ -38,8 +158,23 @@ const Index = () => {
           co: result.co ? Number(result.co.toFixed(1)) : 0,
           methane: result.methane || 0,
           airQuality: result.airQuality || 0
-        });
+        };
         
+        setData(newData);
+        
+        // Determine status for each parameter
+        const newStatuses: Record<string, SensorStatus> = {
+          temperature: determineStatus("temperature", newData.temperature),
+          humidity: determineStatus("humidity", newData.humidity),
+          pm25: determineStatus("pm25", newData.pm25),
+          pm10: determineStatus("pm10", newData.pm10),
+          co: determineStatus("co", newData.co),
+          methane: determineStatus("methane", newData.methane),
+          airQuality: determineStatus("airQuality", newData.airQuality)
+        };
+        
+        setSensorStatuses(newStatuses);
+        setOverallStatus(determineOverallStatus(newStatuses));
         setError(null);
       } catch (error) {
         setError(error.message);
@@ -75,7 +210,14 @@ const Index = () => {
           </div>
         ) : (
           <>
-            <AQIDisplay value={data.aqi} className="mb-16" />
+            <AQIDisplay value={data.aqi} className="mb-8" />
+            
+            <Alert className={`glass-panel mb-8 glow glow-${overallStatus.color} border-${overallStatus.color === 'green' ? 'green-500' : overallStatus.color === 'yellow' ? 'yellow-500' : overallStatus.color === 'red' ? 'red-500' : 'purple-500'}`}>
+              <AlertTitle className="text-lg font-bold">Environmental Status</AlertTitle>
+              <AlertDescription className="text-white/90">
+                {overallStatus.message}
+              </AlertDescription>
+            </Alert>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <SensorCard
@@ -83,42 +225,48 @@ const Index = () => {
                 value={data.temperature}
                 unit="°C"
                 icon={Thermometer}
-                glowColor="yellow"
+                glowColor={sensorStatuses.temperature?.color || "green"}
+                description={sensorStatuses.temperature?.message}
               />
               <SensorCard
                 title="Humidity"
                 value={data.humidity}
                 unit="%"
                 icon={Droplets}
-                glowColor="green"
+                glowColor={sensorStatuses.humidity?.color || "green"}
+                description={sensorStatuses.humidity?.message}
               />
               <SensorCard
                 title="PM2.5"
                 value={data.pm25}
                 unit="µg/m³"
                 icon={Wind}
-                glowColor="red"
+                glowColor={sensorStatuses.pm25?.color || "green"}
+                description={sensorStatuses.pm25?.message}
               />
               <SensorCard
                 title="PM10"
                 value={data.pm10}
                 unit="µg/m³"
                 icon={CloudRain}
-                glowColor="purple"
+                glowColor={sensorStatuses.pm10?.color || "green"}
+                description={sensorStatuses.pm10?.message}
               />
               <SensorCard
                 title="CO"
                 value={data.co}
                 unit="PPM"
                 icon={Factory}
-                glowColor="red"
+                glowColor={sensorStatuses.co?.color || "green"}
+                description={sensorStatuses.co?.message}
               />
               <SensorCard
                 title="Air Quality"
                 value={data.airQuality}
                 unit="ppm"
                 icon={Factory}
-                glowColor="purple"
+                glowColor={sensorStatuses.airQuality?.color || "green"}
+                description={sensorStatuses.airQuality?.message}
               />
             </div>
           </>

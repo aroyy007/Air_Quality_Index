@@ -7,6 +7,7 @@ import weatherRoutes from "./routes/weatherRoutes.js";
 import mongoose from "mongoose";
 import { SerialPort } from 'serialport';
 import { ReadlineParser } from '@serialport/parser-readline';
+import SensorData from "./models/SensorData.js";
 
 dotenv.config();
 
@@ -39,13 +40,20 @@ try {
     parser.on('data', async (rawData) => {
         try {
             const sensorData = JSON.parse(rawData);
+            console.log("Received data from Arduino:", sensorData);
             
-            // Validate and save sensor data
-            if (sensorData.co && sensorData.aq && sensorData.ch4) {
-                const newEntry = new mongoose.models.SensorData({
-                    co: (sensorData.co / 1024) * 1000,
-                    aqi: (sensorData.aq / 1024) * 500,
-                    methane: sensorData.ch4
+            // Map Arduino data to our schema
+            if (sensorData) {
+                const newEntry = new SensorData({
+                    co: sensorData.co || 0,
+                    aqi: sensorData.aqi || 0,
+                    methane: sensorData.ch4 || 0,
+                    airQuality: sensorData.air_quality || 0,
+                    // Set default values for fields not provided by Arduino
+                    temperature: 0,
+                    humidity: 0,
+                    pm25: 0,
+                    pm10: 0
                 });
                 
                 await newEntry.save();
@@ -53,6 +61,7 @@ try {
             }
         } catch (error) {
             console.error('Arduino Data Error:', error.message);
+            console.error('Raw data received:', rawData);
         }
     });
 
@@ -61,6 +70,7 @@ try {
     });
 } catch (error) {
     console.error('Serial Port Initialization Error:', error.message);
+    console.log('Continuing without serial port. Data will only come from OpenWeatherMap API.');
 }
 
 const PORT = process.env.PORT || 5000;
