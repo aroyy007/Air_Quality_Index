@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Thermometer, Droplets, Wind, CloudRain } from "lucide-react";
+import { Thermometer, Droplets, Wind, CloudRain, Factory } from "lucide-react";
 import AQIDisplay from "@/components/AQIDisplay";
 import SensorCard from "@/components/SensorCard";
 import { Meteors } from "@/components/Meteors";
+import AQIChart from "@/components/AQIChart";
 
 const Index = () => {
   const [data, setData] = useState({
@@ -12,6 +13,8 @@ const Index = () => {
     pm25: 0,
     pm10: 0,
     co: 0,
+    methane: 0,
+    airQuality: 0
   });
 
   const [loading, setLoading] = useState(true);
@@ -22,20 +25,29 @@ const Index = () => {
       try {
         const response = await fetch('http://localhost:5000/api/weather');
         if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
+          throw new Error(`Server error: ${response.status}`);
         }
         const result = await response.json();
-        console.log("Fetched data:", result); 
-        setData(result);
+        
+        setData({
+          aqi: result.aqi || 0,
+          temperature: result.temperature ? Number(result.temperature.toFixed(1)) : 0,
+          humidity: result.humidity || 0,
+          pm25: result.pm25 ? Number(result.pm25.toFixed(1)) : 0,
+          pm10: result.pm10 ? Number(result.pm10.toFixed(1)) : 0,
+          co: result.co ? Number(result.co.toFixed(1)) : 0,
+          methane: result.methane || 0,
+          airQuality: result.airQuality || 0
+        });
+        
         setError(null);
       } catch (error) {
-        console.error("Error fetching data:", error);
-        setError("Failed to fetch data. Please check the server and try again.");
+        setError(error.message);
       } finally {
         setLoading(false);
       }
     };
-  
+
     fetchData();
     const interval = setInterval(fetchData, 3000);
     return () => clearInterval(interval);
@@ -54,9 +66,13 @@ const Index = () => {
         </div>
 
         {loading ? (
-          <div className="text-center text-white/80">Loading data...</div>
+          <div className="text-center text-white/80 animate-pulse">
+            Loading real-time data...
+          </div>
         ) : error ? (
-          <div className="text-center text-red-500">{error}</div>
+          <div className="text-center text-red-500">
+            ⚠️ {error} - Please check backend connection
+          </div>
         ) : (
           <>
             <AQIDisplay value={data.aqi} className="mb-16" />
@@ -94,15 +110,26 @@ const Index = () => {
                 title="CO"
                 value={data.co}
                 unit="PPM"
-                icon={Wind}
+                icon={Factory}
                 glowColor="red"
+              />
+              <SensorCard
+                title="Air Quality"
+                value={data.airQuality}
+                unit="ppm"
+                icon={Factory}
+                glowColor="purple"
               />
             </div>
           </>
         )}
+        
+        <div className="mt-8">
+          <AQIChart />
+        </div>
 
         <footer className="mt-16 text-center text-sm text-white/40">
-          <p>©2025 Arijit Roy</p> {/* cspell: disable-line */}
+          <p>Real-time monitoring system ©2025</p>
         </footer>
       </main>
     </div>

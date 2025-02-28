@@ -9,7 +9,7 @@ const sensorDataSchema = new mongoose.Schema(
     pm10: Number,
     co: Number,
   },
-  { timestamps: true }
+  { timestamps: true } 
 );
 
 export default mongoose.model("SensorData", sensorDataSchema);
