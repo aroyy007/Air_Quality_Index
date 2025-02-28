@@ -4,6 +4,7 @@ import AQIDisplay from "@/components/AQIDisplay";
 import SensorCard from "@/components/SensorCard";
 import { Meteors } from "@/components/Meteors";
 import AQIChart from "@/components/AQIChart";
+import AlertSubscription from "@/components/AlertSubscription";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 interface SensorReading {
@@ -32,7 +33,7 @@ const Index = () => {
     pm10: 0,
     co: 0,
     methane: 0,
-    airQuality: 0
+    airQuality: 0,
   });
 
   const [sensorStatuses, setSensorStatuses] = useState<Record<string, SensorStatus>>({});
@@ -41,7 +42,7 @@ const Index = () => {
   const [overallStatus, setOverallStatus] = useState<SensorStatus>({
     status: "good",
     message: "Air quality is good. Safe to go outside.",
-    color: "green"
+    color: "green",
   });
 
   // Define threshold values for each parameter
@@ -50,50 +51,72 @@ const Index = () => {
       good: { max: 25, message: "Comfortable temperature.", color: "green" as "green" },
       moderate: { max: 30, message: "Moderate temperature. Consider shade when outside.", color: "yellow" as "yellow" },
       unhealthy: { max: 35, message: "High temperature. Stay hydrated.", color: "red" as "red" },
-      hazardous: { message: "Extreme temperature. Avoid outdoor activities.", color: "purple" as "purple" }
+      hazardous: { message: "Extreme temperature. Avoid outdoor activities.", color: "purple" as "purple" },
     },
     humidity: {
       good: { max: 50, message: "Comfortable humidity level.", color: "green" as "green" },
       moderate: { max: 65, message: "Moderate humidity level.", color: "yellow" as "yellow" },
       unhealthy: { max: 80, message: "High humidity. May cause discomfort.", color: "red" as "red" },
-      hazardous: { message: "Very high humidity. Limit outdoor exposure.", color: "purple" as "purple" }
+      hazardous: { message: "Very high humidity. Limit outdoor exposure.", color: "purple" as "purple" },
     },
     pm25: {
       good: { max: 12, message: "Good PM2.5 levels.", color: "green" as "green" },
       moderate: { max: 35.4, message: "Moderate PM2.5 levels. Sensitive individuals should use caution.", color: "yellow" as "yellow" },
       unhealthy: { max: 55.4, message: "Unhealthy PM2.5 levels. Consider wearing a mask.", color: "red" as "red" },
-      hazardous: { message: "Hazardous PM2.5 levels. Stay indoors.", color: "purple" as "purple" }
+      hazardous: { message: "Hazardous PM2.5 levels. Stay indoors.", color: "purple" as "purple" },
     },
     pm10: {
       good: { max: 54, message: "Good PM10 levels.", color: "green" as "green" },
       moderate: { max: 154, message: "Moderate PM10 levels. Sensitive individuals should use caution.", color: "yellow" as "yellow" },
       unhealthy: { max: 254, message: "Unhealthy PM10 levels. Consider wearing a mask.", color: "red" as "red" },
-      hazardous: { message: "Hazardous PM10 levels. Stay indoors.", color: "purple" as "purple" }
+      hazardous: { message: "Hazardous PM10 levels. Stay indoors.", color: "purple" as "purple" },
     },
     co: {
       good: { max: 4.4, message: "Safe CO levels.", color: "green" as "green" },
       moderate: { max: 9.4, message: "Moderate CO levels. Monitor for changes.", color: "yellow" as "yellow" },
       unhealthy: { max: 12.4, message: "Unhealthy CO levels. Ensure proper ventilation.", color: "red" as "red" },
-      hazardous: { message: "Dangerous CO levels. Evacuate area and seek fresh air.", color: "purple" as "purple" }
+      hazardous: { message: "Dangerous CO levels. Evacuate area and seek fresh air.", color: "purple" as "purple" },
     },
     methane: {
       good: { max: 2, message: "Safe methane levels.", color: "green" as "green" },
       moderate: { max: 5, message: "Moderate methane levels. Monitor for changes.", color: "yellow" as "yellow" },
       unhealthy: { max: 10, message: "Elevated methane levels. Ensure proper ventilation.", color: "red" as "red" },
-      hazardous: { message: "High methane levels. Risk of flammability.", color: "purple" as "purple" }
+      hazardous: { message: "High methane levels. Risk of flammability.", color: "purple" as "purple" },
     },
     airQuality: {
       good: { max: 50, message: "Good air quality.", color: "green" as "green" },
       moderate: { max: 100, message: "Moderate air quality.", color: "yellow" as "yellow" },
       unhealthy: { max: 150, message: "Poor air quality. Limit outdoor exposure.", color: "red" as "red" },
-      hazardous: { message: "Very poor air quality. Stay indoors.", color: "purple" as "purple" }
+      hazardous: { message: "Very poor air quality. Stay indoors.", color: "purple" as "purple" },
+    },
+  };
+
+  // Calculate AQI based on the highest pollutant value
+  const calculateAQI = (pm25: number, pm10: number, co: number): number => {
+    const aqiPM25 = calculateAQIForPollutant(pm25, "pm25");
+    const aqiPM10 = calculateAQIForPollutant(pm10, "pm10");
+    const aqiCO = calculateAQIForPollutant(co, "co");
+
+    return Math.max(aqiPM25, aqiPM10, aqiCO);
+  };
+
+  // Calculate AQI for a specific pollutant
+  const calculateAQIForPollutant = (value: number, pollutant: string): number => {
+    if (pollutant === "pm25") {
+      if (value <= 12) return (value / 12) * 50; // Good
+      if (value <= 35.4) return 50 + ((value - 12) / (35.4 - 12)) * 50; // Moderate
+      if (value <= 55.4) return 100 + ((value - 35.4) / (55.4 - 35.4)) * 50; // Unhealthy
+      if (value <= 150.4) return 150 + ((value - 55.4) / (150.4 - 55.4)) * 100; // Very Unhealthy
+      return 250 + ((value - 150.4) / (250.4 - 150.4)) * 100; // Hazardous
     }
+    // Add logic for PM10, CO, etc.
+    return 0;
   };
 
   // Determine status based on value and thresholds
   const determineStatus = (param: string, value: number): SensorStatus => {
     const paramThresholds = thresholds[param as keyof typeof thresholds];
-    
+
     if (value <= paramThresholds.good.max) {
       return { status: "good", message: paramThresholds.good.message, color: paramThresholds.good.color };
     } else if (value <= paramThresholds.moderate.max) {
@@ -107,14 +130,14 @@ const Index = () => {
 
   // Determine worst status among all parameters to set overall status
   const determineOverallStatus = (statuses: Record<string, SensorStatus>): SensorStatus => {
-    const priorities = { "good": 0, "moderate": 1, "unhealthy": 2, "hazardous": 3 };
+    const priorities = { good: 0, moderate: 1, unhealthy: 2, hazardous: 3 };
     let worstStatus: SensorStatus = {
       status: "good",
       message: "Air quality is good. Safe to go outside.",
-      color: "green"
+      color: "green",
     };
-    
-    Object.values(statuses).forEach(status => {
+
+    Object.values(statuses).forEach((status) => {
       if (priorities[status.status] > priorities[worstStatus.status]) {
         worstStatus = status;
       }
@@ -143,25 +166,25 @@ const Index = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/weather');
+        const response = await fetch("http://localhost:5000/api/weather");
         if (!response.ok) {
           throw new Error(`Server error: ${response.status}`);
         }
         const result = await response.json();
-        
+
         const newData = {
-          aqi: result.aqi || 0,
+          aqi: Number(calculateAQI(result.pm25 || 0, result.pm10 || 0, result.co || 0).toFixed(2)), // Set AQI to 2 decimal places
           temperature: result.temperature ? Number(result.temperature.toFixed(1)) : 0,
           humidity: result.humidity || 0,
           pm25: result.pm25 ? Number(result.pm25.toFixed(1)) : 0,
           pm10: result.pm10 ? Number(result.pm10.toFixed(1)) : 0,
           co: result.co ? Number(result.co.toFixed(1)) : 0,
           methane: result.methane || 0,
-          airQuality: result.airQuality || 0
+          airQuality: result.airQuality || 0,
         };
-        
+
         setData(newData);
-        
+
         // Determine status for each parameter
         const newStatuses: Record<string, SensorStatus> = {
           temperature: determineStatus("temperature", newData.temperature),
@@ -170,9 +193,9 @@ const Index = () => {
           pm10: determineStatus("pm10", newData.pm10),
           co: determineStatus("co", newData.co),
           methane: determineStatus("methane", newData.methane),
-          airQuality: determineStatus("airQuality", newData.airQuality)
+          airQuality: determineStatus("airQuality", newData.airQuality),
         };
-        
+
         setSensorStatuses(newStatuses);
         setOverallStatus(determineOverallStatus(newStatuses));
         setError(null);
@@ -211,8 +234,18 @@ const Index = () => {
         ) : (
           <>
             <AQIDisplay value={data.aqi} className="mb-8" />
-            
-            <Alert className={`glass-panel mb-8 glow glow-${overallStatus.color} border-${overallStatus.color === 'green' ? 'green-500' : overallStatus.color === 'yellow' ? 'yellow-500' : overallStatus.color === 'red' ? 'red-500' : 'purple-500'}`}>
+
+            <Alert
+              className={`glass-panel mb-8 glow glow-${overallStatus.color} border-${
+                overallStatus.color === "green"
+                  ? "green-500"
+                  : overallStatus.color === "yellow"
+                  ? "yellow-500"
+                  : overallStatus.color === "red"
+                  ? "red-500"
+                  : "purple-500"
+              }`}
+            >
               <AlertTitle className="text-lg font-bold">Environmental Status</AlertTitle>
               <AlertDescription className="text-white/90">
                 {overallStatus.message}
@@ -269,9 +302,14 @@ const Index = () => {
                 description={sensorStatuses.airQuality?.message}
               />
             </div>
+
+            {/* Add the AlertSubscription component here */}
+            <div className="mt-8">
+              <AlertSubscription />
+            </div>
           </>
         )}
-        
+
         <div className="mt-8">
           <AQIChart />
         </div>

@@ -4,10 +4,12 @@ import cors from "cors";
 import connectDB from "./config/db.js";
 import sensorRoutes from "./routes/sensorRoutes.js";
 import weatherRoutes from "./routes/weatherRoutes.js";
+import emailRoutes from "./routes/emailRoutes.js";
 import mongoose from "mongoose";
 import { SerialPort } from 'serialport';
 import { ReadlineParser } from '@serialport/parser-readline';
 import SensorData from "./models/SensorData.js";
+import { checkAndSendAlerts } from "./controllers/emailController.js";
 
 dotenv.config();
 
@@ -23,6 +25,7 @@ connectDB();
 // Routes
 app.use("/api/sensors", sensorRoutes);
 app.use("/api/weather", weatherRoutes);
+app.use("/api/alerts", emailRoutes);
 
 app.get("/", (req, res) => {
     res.send("API is running...");
@@ -58,6 +61,9 @@ try {
                 
                 await newEntry.save();
                 console.log('Sensor data saved:', newEntry);
+                
+                // Check for alerts after new data is received
+                checkAndSendAlerts();
             }
         } catch (error) {
             console.error('Arduino Data Error:', error.message);
@@ -72,6 +78,17 @@ try {
     console.error('Serial Port Initialization Error:', error.message);
     console.log('Continuing without serial port. Data will only come from OpenWeatherMap API.');
 }
+
+// Set up scheduled alert checks (every 15 minutes)
+setInterval(async () => {
+    console.log("Running scheduled alert check...");
+    try {
+        const notifiedCount = await checkAndSendAlerts();
+        console.log(`Alert check complete. Sent ${notifiedCount || 0} notifications.`);
+    } catch (error) {
+        console.error("Scheduled alert check failed:", error);
+    }
+}, 15 * 60 * 1000); // 15 minutes in milliseconds
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
