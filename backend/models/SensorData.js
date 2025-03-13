@@ -10,8 +10,12 @@ const sensorDataSchema = new mongoose.Schema(
     co: Number,
     methane: Number, // Added to match Arduino data
     airQuality: Number, // Added to match Arduino data
+    o3: Number,
+    so2: Number,
+    no2: Number,
+    nh3: Number,
   },
-  { timestamps: true } 
+  { timestamps: true }
 );
 
 export default mongoose.model("SensorData", sensorDataSchema);
